@@ -148,29 +148,29 @@ class XmlExporter:
         self.check_and_load_decompiler()
         self.display_xml_exporter_version()
         self.display_database_info()
-        
+
         self.get_options()
-    
+
         if (self.autorun == True):
             (self.filename, ext) = os.path.splitext(idaapi.cvar.database_idb)
             self.filename += ".xml"
         else:
             self.filename=idaapi.askfile_c(1, "*.xml",
                                            "Enter name of export xml file:")
-            
-        if self.filename == None or len(self.filename) == 0:
+
+        if self.filename is None or len(self.filename) == 0:
             raise Cancelled
         self.xmlfile = self.open_file(self.filename, "w")
-        
+
         idaapi.show_wait_box("Exporting XML <PROGRAM> document ....")
         idaapi.msg("\n------------------------------------------------" +
                    "-----------")
         idaapi.msg("\nExporting XML <PROGRAM> document ....")
         begin = time.clock()
-        
+
         self.write_xml_declaration()
         self.export_program()
-        
+
         # export database items based on options
         if (self.options.DataTypes.checked         == True or
             self.options.DataDefinitions.checked   == True or 
@@ -180,30 +180,30 @@ class XmlExporter:
             self.options.MemoryContent.checked     == True):
             self.export_memory_map()
         if (self.options.RegisterValues.checked    == True):
-            self.export_register_values()   
+            self.export_register_values()
         if (self.options.CodeBlocks.checked        == True):
-            self.export_code()  
+            self.export_code()
         if (self.options.DataDefinitions.checked   == True):
-            self.export_data()  
+            self.export_data()
         if (self.options.Comments.checked          == True):
             self.export_comments()
-            self.export_bookmarks()     
+            self.export_bookmarks()
         if (self.options.EntryPoints.checked       == True):
-            self.export_program_entry_points()  
+            self.export_program_entry_points()
         if (self.options.Symbols.checked           == True):
-            self.export_symbol_table()  
+            self.export_symbol_table()
         if (self.options.Functions.checked         == True):
-            self.export_functions() 
+            self.export_functions()
         if (self.options.MemoryReferences.checked  == True or 
             self.options.StackReferences.checked   == True or
             self.options.Manual.checked            == True or
             self.options.DataTypes.checked         == True):
-            self.export_markup()    
+            self.export_markup()
         self.end_element(PROGRAM)
-        
+
         idaapi.msg('\n%35s' % 'Total ')
         self.display_cpu_time(begin)
-        idaapi.hide_wait_box()  
+        idaapi.hide_wait_box()
         self.display_summary()
 
 
@@ -234,7 +234,7 @@ class XmlExporter:
                 plugin = "hexarm64"
             elif self.inf.is_32bit():
                 plugin = "hexarm"
-        if len(plugin) > 0:
+        if plugin != "":
             try:
                 idaapi.load_plugin(plugin)
                 self.hexrays = idaapi.init_hexrays_plugin()
@@ -253,8 +253,7 @@ class XmlExporter:
             String containing either the character or the entity
             substition string.
         """
-        if ((ord(ch) < 0x20) and (ord(ch) != 0x09 and
-             ord(ch) != 0x0A and ord(ch) != 0x0D)): return ''
+        if ord(ch) < 0x20 and ord(ch) not in [0x09, 0x0A, 0x0D]: return ''
         elif ch == '&' :  return '&amp;'
         elif ch == '<' :  return "&lt;"
         elif ch == '>' :  return "&gt;"
@@ -276,10 +275,7 @@ class XmlExporter:
             String containing original string with substitutions for
                 any special XML characters.
         """
-        new = ''
-        for c in text:
-            new += self.check_char(c)
-        return new
+        return ''.join(self.check_char(c) for c in text)
     
 
     def check_if_seg_contents(self, seg):
@@ -293,10 +289,10 @@ class XmlExporter:
             True if any address in a segment contains a value.
             False if no address in a segment contains a value.
         """
-        for addr in idautils.Heads(seg.startEA, seg.endEA):
-            if idaapi.hasValue(idaapi.getFlags(addr)) == True:
-                return True
-        return False
+        return any(
+            idaapi.hasValue(idaapi.getFlags(addr)) == True
+            for addr in idautils.Heads(seg.startEA, seg.endEA)
+        )
 
 
     def check_stack_frame(self, sframe):
@@ -313,12 +309,11 @@ class XmlExporter:
         n = sframe.memqty
         for i in range(n):
             member = sframe.get_member(i)
-            if member == None:
+            if member is None:
                 continue
             mname = idaapi.get_member_name(member.id)
-            if mname != None and len(mname) > 0: 
-                if mname != " s" and mname != " r":
-                    return True
+            if mname != None and len(mname) > 0 and mname not in [" s", " r"]:
+                return True
         return False
 
 
@@ -400,7 +395,7 @@ class XmlExporter:
         Args:
             message: String containing message to display.
         """
-        line = "    " + message
+        line = f"    {message}"
         idaapi.msg('\n%-35s' % line)
         
 
@@ -422,25 +417,24 @@ class XmlExporter:
         idaapi.msg("\n--------------------------------------------" +
                    "---------------")
         if self.autorun == False:
-            frmt  = "TITLE XML Export Successful!\n"
-            frmt += "ICON INFO\n"
+            frmt = "TITLE XML Export Successful!\n" + "ICON INFO\n"
             frmt += "AUTOHIDE NONE\n"
             frmt += "HIDECANCEL\n"
             details = '\nSee output window for details...'
-            idaapi.info("%s" % (frmt + fileline + details))
+            idaapi.info(f"{frmt + fileline + details}")
 
 
     def display_xml_exporter_version(self):
         """
         Displays XML Exporter plugin version info in IDA output window.
         """
-        plugin = idaapi.idadir(idaapi.PLG_SUBDIR) + '/xmlexp.py'
+        plugin = f'{idaapi.idadir(idaapi.PLG_SUBDIR)}/xmlexp.py'
         plugintime = time.localtime(os.path.getmtime(plugin))
         # ts = time.strftime('%Y-%m-%d %H:%M:%S', plugintime)
         ts = time.strftime('%b %d %Y %H:%M:%S', plugintime)
         version = "\nXML Exporter Version " + XML_EXPORTER_VERSION
-        version += " : SDK " + str(IDA_SDK_VERSION)
-        version += " : Python : "+ ts + '\n'
+        version += f" : SDK {str(IDA_SDK_VERSION)}"
+        version += f" : Python : {ts}" + '\n'
         idaapi.msg(version)
     
 
@@ -453,11 +447,8 @@ class XmlExporter:
             newline: Boolean indicating if end tag should go on new line.
         """
         self.indent_level -= 1
-        if newline:
-            start = '\n' + ("    " * self.indent_level)
-        else:
-            start = ''
-        self.write_to_xmlfile(start  + "</" + tag + ">")
+        start = '\n' + ("    " * self.indent_level) if newline else ''
+        self.write_to_xmlfile(f"{start}</{tag}>")
 
 
     '''
@@ -510,7 +501,7 @@ class XmlExporter:
                 description = curloc.markdesc(slot)
             if address == BADADDR:
                 continue
-            if description == None:
+            if description is None:
                 continue
             if found == False:
                 found = True
@@ -533,14 +524,14 @@ class XmlExporter:
         if IDA_SDK_VERSION < 660 or self.hexrays == False:
             return
         functions = idautils.Functions()
-        if functions == None:
+        if functions is None:
             return
         for addr in functions:
             try:
                 if idaapi.is_spec_ea(addr):
                     continue
                 ccmts = idaapi.restore_user_cmts(addr)
-                if ccmts == None:
+                if ccmts is None:
                     continue
                 p = idaapi.user_cmts_begin(ccmts)
                 while p != idaapi.user_cmts_end(ccmts):
@@ -625,7 +616,7 @@ class XmlExporter:
         self.close_tag(True)
         # tag_remove seems to be losing last character
         # work around is to add a space
-        cmt_text = idaapi.tag_remove(cmt + ' ')
+        cmt_text = idaapi.tag_remove(f'{cmt} ')
         self.write_text(cmt_text)
         self.end_element(COMMENT, False)
 
@@ -716,17 +707,17 @@ class XmlExporter:
             else:
                 outbuf = idaapi.print_type(addr, outbuf)
             if demangled == "'string'":
-                demangled == None
+                demangled is None
             has_typeinfo = demangled != None or (outbuf != None and
                                                 len(outbuf) > 0)
             #TODO export_data: add DISPLAY_SETTINGS
             self.close_tag(has_typeinfo)
-            if has_typeinfo == True:
-                if demangled != None:
-                    self.export_typeinfo_cmt(demangled)
-                else:
+            if has_typeinfo:
+                if demangled is None:
                     #TODO export_data - check this
                     self.export_typeinfo_cmt(outbuf[:-1])
+                else:
+                    self.export_typeinfo_cmt(demangled)
                 self.end_element(DEFINED_DATA)
             addr = idaapi.nextthat(addr, self.max_ea, idaapi.isData)
         self.end_element(DATA)
@@ -764,7 +755,7 @@ class XmlExporter:
         if IDA_SDK_VERSION < 640:
             return
         cname = idaapi.get_const_name(cid)
-        if cname == None or len(cname) == 0:
+        if cname is None or len(cname) == 0:
             return
         regcmt = idaapi.get_const_cmt(cid, False)
         rptcmt = idaapi.get_const_cmt(cid, True)
@@ -801,7 +792,7 @@ class XmlExporter:
         if IDA_SDK_VERSION > 630:
             return
         cname = idaapi.get_enum_member_name(cid)
-        if cname == None or len(cname) == 0:
+        if cname is None or len(cname) == 0:
             return
         regcmt = idaapi.get_enum_member_cmt(cid, False)
         rptcmt = idaapi.get_enum_member_cmt(cid, True)
@@ -835,11 +826,9 @@ class XmlExporter:
         """
         if IDA_SDK_VERSION < 640:
             return
-        mask=0xFFFFFFFF
-        if bf == True:
-            mask = idaapi.get_first_bmask(eid)
+        mask = idaapi.get_first_bmask(eid) if bf == True else 0xFFFFFFFF
         first = True
-        for n in range(idaapi.get_enum_size(eid)):
+        for _ in range(idaapi.get_enum_size(eid)):
             if (first == True):
                 value = idaapi.get_first_const(eid, mask)
                 first = False
@@ -873,11 +862,9 @@ class XmlExporter:
         """
         if IDA_SDK_VERSION > 630:
             return
-        mask=0xFFFFFFFF
-        if bf == True:
-            mask = idaapi.get_first_bmask(eid)
+        mask = idaapi.get_first_bmask(eid) if bf == True else 0xFFFFFFFF
         first = True
-        for n in range(idaapi.get_enum_size(eid)):
+        for _ in range(idaapi.get_enum_size(eid)):
             if (first == True):
                 value = idaapi.get_first_enum_member(eid, mask)
                 first = False
@@ -914,19 +901,19 @@ class XmlExporter:
         if idaapi.is_bf(eid) == True:
             last = idaapi.get_last_bmask(eid)
             mask = idaapi.get_first_bmask(eid)
-            while  (cid == idaapi.BADNODE):
-                if IDA_SDK_VERSION < 640:
-                    cid = idaapi.get_enum_member(eid, (value & mask), 0, mask)
-                else:
-                    cid = idaapi.get_const(eid, (value & mask), 0, mask)
+            while (cid == idaapi.BADNODE):
+                cid = (
+                    idaapi.get_enum_member(eid, (value & mask), 0, mask)
+                    if IDA_SDK_VERSION < 640
+                    else idaapi.get_const(eid, (value & mask), 0, mask)
+                )
                 if cid != idaapi.BADNODE or mask == last:
                     break
                 mask = idaapi.get_next_bmask(eid, mask)
+        elif IDA_SDK_VERSION < 640:
+            cid = idaapi.get_enum_member(eid, value, 0, last)
         else:
-            if IDA_SDK_VERSION < 640:
-                cid = idaapi.get_enum_member(eid, value, 0, last)
-            else:
-               cid = idaapi.get_const(eid, value, 0, last)
+            cid = idaapi.get_const(eid, value, 0, last)
         if (cid == idaapi.BADNODE):
             return
         self.start_element(EQUATE_REFERENCE)
@@ -970,7 +957,7 @@ class XmlExporter:
             self.start_element(ENUM)
             eid = idaapi.getn_enum(i)
             ename = idaapi.get_enum_name(eid)
-            if (ename == None or len(ename) == 0):
+            if ename is None or len(ename) == 0:
                 continue
             self.write_attribute(NAME, ename)
             ewidth = idaapi.get_enum_width(eid)
@@ -1024,14 +1011,14 @@ class XmlExporter:
             nextline = idaapi.get_extra_cmt(addr, extra)
         while (nextline != None):
             # workaround for tag_remove bug is to add space
-            cmt += idaapi.tag_remove(nextline + ' ')
+            cmt += idaapi.tag_remove(f'{nextline} ')
             extra += 1
             if IDA_SDK_VERSION < 640:
                 nextline = idaapi.ExtraGet(addr, extra)
             else:
                 nextline = idaapi.get_extra_cmt(addr, extra)
             if (nextline != None):
-                cmt += '\n' 
+                cmt += '\n'
         self.export_comment(addr, cmt_type, cmt)
 
 
@@ -1040,7 +1027,7 @@ class XmlExporter:
         Exports information about all functions. 
         """
         functions = idautils.Functions()
-        if functions == None:
+        if functions is None:
             return
         self.update_status(FUNCTIONS)
         timer = time.clock()
@@ -1084,7 +1071,7 @@ class XmlExporter:
                             len(outbuf) > 0))
             if demangled != None:
                 self.export_typeinfo_cmt(demangled)
-            elif has_typeinfo == True:
+            elif has_typeinfo:
                 self.export_typeinfo_cmt(outbuf[:-1])
             self.export_stack_frame(function)
             self.end_element(FUNCTION)
@@ -1100,7 +1087,7 @@ class XmlExporter:
             addr: Integer representing instruction address.
         """
         text = idaapi.get_manual_insn(addr)
-        if text == None or len(text) == 0:
+        if text is None or len(text) == 0:
             return
         self.start_element(MANUAL_INSTRUCTION)
         self.write_address_attribute(ADDRESS, addr)
@@ -1188,13 +1175,13 @@ class XmlExporter:
                 mti = idaapi.retrieve_member_info(m, mtibuf)
                 if IDA_SDK_VERSION < 640:
                     msize = idaapi.get_type_size0(None, dtype)
-                    if msize == None or msize == 0:
+                    if msize is None or msize == 0:
                         msize = idaapi.get_member_size(m)
                 else:
                     msize = idaapi.get_data_type_size(m.flag, mtibuf)
                 size = idaapi.get_member_size(m)
                 osize = size
-                if size < msize: size = msize
+                size = max(size, msize)
             if (size != msize):
                 arraytype = self.get_member_type(m)
                 dtype = "%s[%d]" % (arraytype, size/msize)
@@ -1230,7 +1217,7 @@ class XmlExporter:
         """
         length = 0
         startaddr = start
-        for addr in range(start, end):
+        for addr in range(startaddr, end):
             # reset start address when length == 0
             if (length == 0):
                 startaddr = addr
@@ -1238,19 +1225,21 @@ class XmlExporter:
             if has_val == True:
                 length += self.cbsize
             next_address = idaapi.nextaddr(addr)
-            if ((has_val == False) or (next_address != addr+1) or
-                    (next_address == end)):
-                if length > 0:
-                    offset = binfile.tell()
-                    idaapi.base2file(binfile.get_fp(), offset, startaddr,
-                                     startaddr+length)
-                    self.start_element(MEMORY_CONTENTS)
-                    self.write_address_attribute(START_ADDR, startaddr)
-                    self.write_attribute(FILE_NAME, binfilename)
-                    self.write_numeric_attribute(FILE_OFFSET, offset)
-                    self.write_numeric_attribute(LENGTH, length)
-                    self.close_tag(False)
-                    length=0
+            if (
+                (has_val == False)
+                or (next_address != addr + 1)
+                or (next_address == end)
+            ) and length > 0:
+                offset = binfile.tell()
+                idaapi.base2file(binfile.get_fp(), offset, startaddr,
+                                 startaddr+length)
+                self.start_element(MEMORY_CONTENTS)
+                self.write_address_attribute(START_ADDR, startaddr)
+                self.write_attribute(FILE_NAME, binfilename)
+                self.write_numeric_attribute(FILE_OFFSET, offset)
+                self.write_numeric_attribute(LENGTH, length)
+                self.close_tag(False)
+                length=0
 
 
     def export_memory_map(self):
@@ -1291,16 +1280,15 @@ class XmlExporter:
         """
         f = idaapi.getFlags(addr)
         ri = idaapi.refinfo_t()
-        if idaapi.get_refinfo(addr, op, ri) == 1: 
-            if ri.target != BADADDR:
-                target = ri.target
-            elif idaapi.isCode(f) == True:
-                idaapi.decode_insn(addr)
-                target = idaapi.cmd.Operands[op].value - ri.tdelta + ri.base
-            elif idaapi.isData(f) == True:
-                target = self.get_data_value(addr) - ri.tdelta + ri.base;
-            else:
-                return
+        if idaapi.get_refinfo(addr, op, ri) != 1:
+            return
+        if ri.target != BADADDR:
+            target = ri.target
+        elif idaapi.isCode(f) == True:
+            idaapi.decode_insn(addr)
+            target = idaapi.cmd.Operands[op].value - ri.tdelta + ri.base
+        elif idaapi.isData(f) == True:
+            target = self.get_data_value(addr) - ri.tdelta + ri.base;
         else:
             return
         if idaapi.isEnabled(target) == False:
@@ -1342,20 +1330,20 @@ class XmlExporter:
         self.write_address_attribute(START_ADDR, seg.startEA)
         length = (seg.endEA - seg.startEA)*self.cbsize
         self.write_numeric_attribute(LENGTH, length)
-        perms = ""
         if (seg.perm != 0):
+            perms = ""
             if (seg.perm & idaapi.SEGPERM_READ  != 0):
                 perms += 'r'
             if (seg.perm & idaapi.SEGPERM_WRITE != 0):
-                perms += 'w' 
+                perms += 'w'
             if (seg.perm & idaapi.SEGPERM_EXEC  != 0):
                 perms += 'x'
-            if (len(perms) > 0):
+            if perms != "":
                 self.write_attribute(PERMISSIONS, perms)
         has_contents = (self.options.MemoryContent.checked == True and
                        self.check_if_seg_contents(seg) == True)
         self.close_tag(has_contents)
-        if (has_contents == True):
+        if has_contents:
             self.export_memory_contents(os.path.basename(binfilename),
                                       self.binfile, seg.startEA, seg.endEA)
             self.end_element(MEMORY_SECTION)
@@ -1384,15 +1372,14 @@ class XmlExporter:
         if input_md5 != None:
             self.write_attribute(INPUT_MD5,input_md5)
         self.close_tag(True)
-    
+
         # output the INFO_SOURCE element
         self.start_element(INFO_SOURCE)
         if IDA_SDK_VERSION < 670:
-            tool  = 'IDA-Pro XML plugin (Python) SDK '
-            tool +=  str(IDA_SDK_VERSION)
+            tool = f'IDA-Pro XML plugin (Python) SDK {str(IDA_SDK_VERSION)}'
         else:
-            tool  = 'IDA-Pro ' + idaapi.get_kernel_version()
-            tool += ' XML plugin (Python) SDK ' + str(IDA_SDK_VERSION)
+            tool = f'IDA-Pro {idaapi.get_kernel_version()}'
+            tool += f' XML plugin (Python) SDK {str(IDA_SDK_VERSION)}'
         self.write_attribute(TOOL, tool)
         user = os.getenv("USERNAME", "UNKNOWN")
         if (user == "UNKNOWN"):
@@ -1402,14 +1389,11 @@ class XmlExporter:
         ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
         self.write_attribute(TIMESTAMP, ts)
         self.close_tag()
-    
+
         # output the PROCESSOR element
         self.start_element(PROCESSOR)
         self.write_attribute(NAME, self.inf.procName)
-        if (self.inf.mf):
-            byte_order ="big"
-        else:
-            byte_order ="little"
+        byte_order = "big" if self.inf.mf else "little"
         self.write_attribute(ENDIAN, byte_order)
         self.seg_addr = False
         bitness = 1
@@ -1437,7 +1421,7 @@ class XmlExporter:
             self.seg_addr = True
         # find any overlayed memory before processing addressable items
         self.find_overlay_memory()
-    
+
         # output compiler info
         self.start_element(COMPILER)
         self.write_attribute(NAME, idaapi.get_compiler_name(self.inf.cc.id))
@@ -1498,7 +1482,7 @@ class XmlExporter:
                 if value == idaapi.BADSEL:
                     continue
                 regname = idaapi.ph.regnames[j]
-                if regname == None:
+                if regname is None:
                     continue
                 if regname.lower() == "cs":
                     continue
@@ -1538,10 +1522,7 @@ class XmlExporter:
         timer = time.clock();
         self.start_element(REGISTER_VALUES, True)
         for i in range(nsegregareas):
-            if IDA_SDK_VERSION < 650:
-                sr = idaapi.getnSRarea(i)
-            else:
-                sr = idaapi.getn_srarea(i)
+            sr = idaapi.getnSRarea(i) if IDA_SDK_VERSION < 650 else idaapi.getn_srarea(i)
             first = idaapi.ph_get_regFirstSreg()
             last  = idaapi.ph_get_regLastSreg()+1
             for j in range(first, last):
@@ -1549,7 +1530,7 @@ class XmlExporter:
                 if value == idaapi.BADSEL:
                     continue
                 regname = idaapi.ph.regnames[j]
-                if regname == None:
+                if regname is None:
                     continue
                 if regname.lower() == "cs":
                     continue
@@ -1596,7 +1577,7 @@ class XmlExporter:
             function: IDA function instance
         """
         sframe = idaapi.get_struc(function.frame)
-        if sframe == None or sframe.memqty <= 0:
+        if sframe is None or sframe.memqty <= 0:
             return
         self.start_element(STACK_FRAME)
         self.write_numeric_attribute(LOCAL_VAR_SIZE, function.frsize)
@@ -1626,7 +1607,7 @@ class XmlExporter:
                 if optype == idaapi.o_void:
                     continue
                 SV = idaapi.get_stkvar(opnd, idaapi.op_t_get_addr(opnd))
-                if SV == None:
+                if SV is None:
                     continue
                 (sv, actval) = SV
                 function = idaapi.get_func(addr)
@@ -1658,12 +1639,12 @@ class XmlExporter:
         """
         for i in range(sframe.memqty):
             member = sframe.get_member(i)
-            if member == None:
+            if member is None:
                 continue
             mname = idaapi.get_member_name(member.id)
-            if mname == None or len(mname) < 0:
+            if mname is None or len(mname) < 0:
                 continue
-            if mname == " s" or mname == " r":
+            if mname in [" s", " r"]:
                 continue
             spoff = member.soff - function.frsize - function.frregs
             froff = member.soff - function.frsize
@@ -1671,8 +1652,8 @@ class XmlExporter:
             self.write_numeric_attribute(STACK_PTR_OFFSET, spoff, 16, True)
             if function.flags & idaapi.FUNC_FRAME != 0:
                 self.write_numeric_attribute(FRAME_PTR_OFFSET, froff, 16, True)
-            pre = mname[0:4]
-            if pre != "var_" and pre != "arg_":
+            pre = mname[:4]
+            if pre not in ["var_", "arg_"]:
                 self.write_attribute(NAME, mname)
             f = member.flag
             size = idaapi.get_member_size(member)
@@ -1685,11 +1666,11 @@ class XmlExporter:
                 mti = idaapi.retrieve_member_info(member, mtibuf)
                 if IDA_SDK_VERSION < 640:
                     msize = idaapi.get_type_size0(None, mtype)
-                    if msize == None or msize == 0:
+                    if msize is None or msize == 0:
                         msize = idaapi.get_member_size(member)
                 else:
                     msize = idaapi.get_data_type_size(f, mtibuf)
-            if size < msize: size = msize
+            size = max(size, msize)
             if (idaapi.isASCII(f) == False and idaapi.isAlign(f) == False
                 and size != msize):
                 mtype = "%s[%d]" % (mtype, size/msize)
@@ -1698,17 +1679,17 @@ class XmlExporter:
             regcmt = idaapi.get_member_cmt(member.id, False)
             rptcmt = idaapi.get_member_cmt(member.id, True)
             if regcmt != None:
-                regcmt  = idaapi.tag_remove(regcmt + " ", 0)
+                regcmt = idaapi.tag_remove(f"{regcmt} ", 0)
             if rptcmt != None:
-                rptrcmt = idaapi.tag_remove(rptcmt + " ", 0)
+                rptrcmt = idaapi.tag_remove(f"{rptcmt} ", 0)
             has_regcmt = regcmt != None and len(regcmt) > 0
             has_rptcmt = rptcmt != None and len(rptcmt) > 0
             has_content = has_regcmt or has_rptcmt
             self.close_tag(has_content)
-            if has_content == True:
-                if has_regcmt == True:
+            if has_content:
+                if has_regcmt:
                     self.export_regular_cmt(regcmt)
-                if has_rptcmt == True:
+                if has_rptcmt:
                     self.export_repeatable_cmt(rptcmt)
                 self.end_element(STACK_VAR)
 
@@ -1811,7 +1792,7 @@ class XmlExporter:
         """
         # older versions of IDAPython returned a '\n' at end of cmt
         if cmt[-1] == '\n':
-            cmt = cmt[0:-1]
+            cmt = cmt[:-1]
         self.write_comment_element(TYPEINFO_CMT, cmt)
         
 
@@ -1841,7 +1822,7 @@ class XmlExporter:
         (i.e. a 16-bit address is limited to 64K) and multiple physical
         segments are mapped into the same logical segment.
         """
-        self.overlay = dict()
+        self.overlay = {}
         self.has_overlays = False;
         nsegs = idaapi.get_segm_qty()
         if nsegs == 0:
@@ -1885,17 +1866,16 @@ class XmlExporter:
         if space != None:
             temp = "%s:%04X" % (space,
                             addr - idaapi.get_segm_base(idaapi.getseg(addr)))
-        else:
-            if (idaapi.ph_get_id() == idaapi.PLFM_386 and
+        elif (idaapi.ph_get_id() == idaapi.PLFM_386 and
                 idaapi.getseg(addr).bitness == 0):
-                base = idaapi.get_segm_para(idaapi.getseg(addr))
-                temp = "%04X:%04X" % (base, addr - (base << 4))
+            base = idaapi.get_segm_para(idaapi.getseg(addr))
+            temp = "%04X:%04X" % (base, addr - (base << 4))
         if idaapi.ph_get_id() == idaapi.PLFM_C166:
             temp = "0x%X" % addr
         if self.has_overlays == True and self.is_overlay(addr) == True:
             oname = idaapi.get_segm_name(idaapi.getseg(addr))
             if len(oname) > 0:
-                temp = oname + "::" + temp
+                temp = f"{oname}::{temp}"
         return temp
 
 
@@ -1910,8 +1890,7 @@ class XmlExporter:
         if size == 1:   return idaapi.get_byte(addr)
         if size == 2:   return idaapi.get_16bit(addr)
         if size == 4:   return idaapi.get_32bit(addr)
-        if size == 8:   return idaapi.get_64bit(addr)
-        return 0
+        return idaapi.get_64bit(addr) if size == 8 else 0
     
 
     def get_datatype(self, addr):
@@ -1938,10 +1917,8 @@ class XmlExporter:
             if str_type == idaapi.ASCSTR_LEN4:      return "string4"
             if str_type == idaapi.ASCSTR_UNICODE:   return "unicode"
             if str_type == idaapi.ASCSTR_ULEN2:     return "unicode2"
-            if str_type == idaapi.ASCSTR_ULEN4:     return "unicode4"
-            return "string"
-        if idaapi.isOff0(f) == True: return "pointer"
-        return t
+            return "unicode4" if str_type == idaapi.ASCSTR_ULEN4 else "string"
+        return "pointer" if idaapi.isOff0(f) == True else t
 
 
     def get_format(self, flags):
@@ -1958,8 +1935,7 @@ class XmlExporter:
         radix = idaapi.getRadix(flags, 0)
         if radix == 2:  return "binary"
         if radix == 8:  return "octal"
-        if radix == 10: return "decimal"
-        return "hex" # default
+        return "decimal" if radix == 10 else "hex"
     
 
     def get_member_type(self, m):
@@ -1979,21 +1955,18 @@ class XmlExporter:
         if idaapi.isStruct(f) == False:
             return t
         s = idaapi.get_sptr(m)
-        if (s == None):
+        if s is None:
             return t
         sname = idaapi.get_struc_name(s.id)
-        if (sname == None):
-            return t
-        return sname
+        return t if sname is None else sname
 
 
     def get_options(self):
         """
         Displays the options menu and retrieves the option settings. 
         """
-        fmt =  "HELP\n"
-        fmt += "XML plugin (Python)\n"
-        fmt += "IDA SDK: "+ str(IDA_SDK_VERSION) + "\n"
+        fmt = "HELP\n" + "XML plugin (Python)\n"
+        fmt += f"IDA SDK: {str(IDA_SDK_VERSION)}" + "\n"
         fmt += "\n"
         fmt += "The XML interface provides a dump of the IDA-Pro database as "
         fmt += "a XML \"PROGRAM\" document. The XML PROGRAM document contains "
@@ -2015,7 +1988,7 @@ class XmlExporter:
         fmt += "\n <Stack References:{StackReferences}>"
         fmt += "\n <Manual Instructions/Operands:{Manual}>{cGroup1}>"
         fmt += "\n\n"
-        
+
         Opts = { 'cGroup1': idaapi.Form.ChkGroupControl
             (
                 (
@@ -2035,10 +2008,10 @@ class XmlExporter:
                 )
             )
         }
-        
+
         self.options = idaapi.Form(fmt, Opts)
         self.options.Compile()
-        
+
         self.options.MemorySections.checked   = True
         self.options.MemoryContent.checked    = True
         self.options.DataTypes.checked        = True
@@ -2052,7 +2025,7 @@ class XmlExporter:
         self.options.MemoryReferences.checked = True
         self.options.StackReferences.checked  = False
         self.options.Manual.checked           = True
-    
+
         if (self.autorun == False):
             ok = self.options.Execute()
             if (ok == 0):
@@ -2078,20 +2051,12 @@ class XmlExporter:
         if pid == idaapi.PLFM_8051:
             if stype == idaapi.SEG_CODE:
                 return "CODE"
-            else:
-                if stype == idaapi.SEG_IMEM:
-                    iaddr = addr - idaapi.get_segm_base(idaapi.getseg(addr))
-                    if iaddr < 0x80:
-                        return "INTMEM"
-                    else:
-                        return "SFR"
-                else:
-                    return "EXTMEM"
+            if stype != idaapi.SEG_IMEM:
+                return "EXTMEM"
+            iaddr = addr - idaapi.get_segm_base(idaapi.getseg(addr))
+            return "INTMEM" if iaddr < 0x80 else "SFR"
         if pid == idaapi.PLFM_TMS:
-            if stype == idaapi.SEG_CODE:
-                return "CODE"
-            else:
-                return "DATA"
+            return "CODE" if stype == idaapi.SEG_CODE else "DATA"
         return None
 
 
@@ -2111,7 +2076,7 @@ class XmlExporter:
         flags = idaapi.getFlags(ea)
         name = idaapi.get_demangled_name(BADADDR, ea, DEMANGLED_FORM,
                                          self.inf.demnames, False)
-        if name == None or len(name) == 0 or name == "`string'":
+        if name is None or len(name) == 0 or name == "`string'":
             name = idaapi.get_name(BADADDR, ea)
         if name != None:
             name = name.replace(" ","_")
@@ -2142,8 +2107,7 @@ class XmlExporter:
         if idaapi.isPackReal(flags) == True: return "packed"
         if idaapi.isASCII(flags)    == True: return "ascii"
         if idaapi.isStruct(flags)   == True: return "structure"
-        if idaapi.isAlign(flags)    == True: return "align"
-        return "unknown"
+        return "align" if idaapi.isAlign(flags)    == True else "unknown"
 
 
     def is_imm_op(self, addr, op):
@@ -2159,9 +2123,7 @@ class XmlExporter:
             False otherwise.
         """
         idaapi.decode_insn(addr)
-        if (idaapi.cmd.Operands[op].type == idaapi.o_imm):
-            return True
-        return False
+        return idaapi.cmd.Operands[op].type == idaapi.o_imm
         
 
     def is_overlay(self, addr):
@@ -2177,9 +2139,7 @@ class XmlExporter:
         if idaapi.ph_get_id() == idaapi.PLFM_C166:
             return False
         s = idaapi.getseg(addr)
-        if s.startEA in self.overlay:
-            return self.overlay[s.startEA]
-        return False
+        return self.overlay[s.startEA] if s.startEA in self.overlay else False
     
     def is_signed_data(self, flags):
         return (flags & idaapi.FF_SIGN) != 0
@@ -2201,14 +2161,12 @@ class XmlExporter:
             if open fails.
         """
         try:
-            f = open(filename, mode)
-            return f
+            return open(filename, mode)
         except:
-            fmt = "TITLE ERROR!\n"
-            fmt += "ICON ERROR\n"
+            fmt = "TITLE ERROR!\n" + "ICON ERROR\n"
             fmt += "AUTOHIDE NONE\n"
             fmt += "HIDECANCEL\n"
-            fmt += "Error opening file" + filename + "!\n"
+            fmt += f"Error opening file{filename}" + "!\n"
             idaapi.warning(fmt)
             raise FileError
 
@@ -2227,7 +2185,7 @@ class XmlExporter:
         if (close):
             self.close_tag(True)
         # Add a counter for this tag; increment counter if it already exists.
-        if (tag in self.elements) == False:
+        if tag not in self.elements:
             self.elements[tag] = len(self.elements)
             self.counters.append(1)
             self.tags.append(tag)
@@ -2261,7 +2219,7 @@ class XmlExporter:
         Args:
             tag: String representing XML element tag
         """
-        status = "Exporting <" + tag + ">"
+        status = f"Exporting <{tag}>"
         idaapi.msg('\n%-35s' % status)
         idaapi.hide_wait_box()
         idaapi.show_wait_box(status)
@@ -2286,11 +2244,11 @@ class XmlExporter:
             name: String representing attribute name.
             value: String representing attribute value.
         """
-        if name == None or value == None:
+        if name is None or value is None:
             return
         if (len(name) == 0) or (len(value) == 0):
             return
-        attr = " " + name + '="' + self.check_for_entities(value) + '"'
+        attr = f' {name}="{self.check_for_entities(value)}"'
         self.write_to_xmlfile(attr)
         
 
@@ -2321,11 +2279,10 @@ class XmlExporter:
         """
         if base == 10:
             temp = "%d" % value
+        elif signedhex == True and value < 0:
+            temp = "-0x%X" % abs(value)
         else:
-            if signedhex == True and value < 0:
-                temp = "-0x%X" % abs(value)
-            else:
-                temp = "0x%X" % value
+            temp = "0x%X" % value
         self.write_attribute(name, temp)
 
 
@@ -2356,8 +2313,10 @@ class XmlExporter:
         Writes the XML Declarations at the start of the XML file.
         """
         self.dbg("\n")
-        xml_declaration  = "<?xml version=\"1.0\" standalone=\"yes\"?>"
-        xml_declaration += "\n<?program_dtd version=\"1\"?>\n"
+        xml_declaration = (
+            "<?xml version=\"1.0\" standalone=\"yes\"?>"
+            + "\n<?program_dtd version=\"1\"?>\n"
+        )
         self.write_to_xmlfile(xml_declaration)
 
 # Global constants
